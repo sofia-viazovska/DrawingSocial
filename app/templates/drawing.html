@@ -1,0 +1,103 @@
+{% extends "base.html" %}
+
+{% block content %}
+{% if drawing_id == 'new' %}
+<div id="create-view" class="drawing-section">
+    <h2 style="margin-bottom: 25px;">Новий малюнок</h2>
+    <div class="form-group">
+        <input type="text" id="draw-title" placeholder="Дайте назву вашому шедевру..." style="width: 100%; box-sizing: border-box; padding: 15px; font-size: 1.1rem;">
+    </div>
+
+    <div class="controls">
+        <div style="display: flex; align-items: center; gap: 10px;">
+            <label>Колір:</label>
+            <input type="color" id="brush-color" class="color-picker" value="#000000">
+        </div>
+        <div style="display: flex; align-items: center; gap: 10px; flex-grow: 1;">
+            <label>Товщина:</label>
+            <input type="range" id="brush-size" class="brush-size" min="1" max="50" value="5">
+        </div>
+        <button onclick="clearCanvas('create-canvas')" class="secondary">🗑️ Очистити</button>
+    </div>
+
+    <div class="drawing-canvas-container" style="position: relative; width: 500px; height: 500px; margin: 0 auto; display: block;">
+        <canvas id="create-canvas" class="drawing-canvas" width="500" height="500" style="background: white; cursor: crosshair;"></canvas>
+    </div>
+
+    <div style="text-align: center; margin-top: 25px;">
+        <button onclick="saveNewDrawing()" class="btn">✨ Опублікувати у стрічці</button>
+    </div>
+</div>
+{% else %}
+<div id="edit-view" class="drawing-section">
+    <h2 id="edit-title">Додати шар</h2>
+    <p style="color: var(--text-muted); text-align: center;">Ви додаєте свій внесок поверх існуючого малюнка.</p>
+
+    <div class="controls">
+        <div style="display: flex; align-items: center; gap: 10px;">
+            <label>Колір:</label>
+            <input type="color" id="edit-brush-color" class="color-picker" value="#ff0000">
+        </div>
+        <div style="display: flex; align-items: center; gap: 10px; flex-grow: 1;">
+            <label>Товщина:</label>
+            <input type="range" id="edit-brush-size" class="brush-size" min="1" max="50" value="5">
+        </div>
+        <button onclick="clearCanvas('edit-canvas')" class="secondary">Очистити шар</button>
+    </div>
+
+    <div id="edit-canvas-container" class="drawing-canvas-container" style="position: relative; width: 500px; height: 500px; margin: 0 auto; display: block;">
+        <canvas id="edit-canvas" class="drawing-canvas" width="500" height="500" style="background: transparent; cursor: crosshair; position: absolute; top: 0; left: 0;"></canvas>
+    </div>
+
+    <div style="margin-top: 25px; display: flex; justify-content: center; gap: 15px;">
+        <button onclick="saveLayer()">✅ Зберегти мій внесок</button>
+        <button onclick="window.location.href='/'" class="secondary">Скасувати</button>
+    </div>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    const drawingId = "{{ drawing_id }}";
+
+    document.addEventListener('DOMContentLoaded', async () => {
+        if (drawingId === 'new') {
+            document.getElementById('nav-create').classList.add('active');
+            setupCanvas('create-canvas', 'brush-color', 'brush-size');
+        } else {
+            currentDrawingId = drawingId;
+            setupCanvas('edit-canvas', 'edit-brush-color', 'edit-brush-size');
+            await loadExistingDrawing(drawingId);
+        }
+    });
+
+    async function loadExistingDrawing(id) {
+        const container = document.getElementById('edit-canvas-container');
+        try {
+            const res = await fetch(`/drawings/${id}`);
+            const drawing = await res.json();
+            document.getElementById('edit-title').innerText = `Додати шар до "${drawing.title}"`;
+
+            drawing.layers.forEach(layer => {
+                const bgCanvas = document.createElement('canvas');
+                bgCanvas.className = 'drawing-canvas bg-canvas';
+                bgCanvas.width = 500;
+                bgCanvas.height = 500;
+                bgCanvas.style.zIndex = 1;
+                bgCanvas.style.position = 'absolute';
+                bgCanvas.style.top = '0';
+                bgCanvas.style.left = '0';
+                container.insertBefore(bgCanvas, document.getElementById('edit-canvas'));
+
+                const img = new Image();
+                img.onload = () => bgCanvas.getContext('2d').drawImage(img, 0, 0);
+                img.src = layer.image_data;
+            });
+            document.getElementById('edit-canvas').style.zIndex = 10;
+        } catch (e) {
+            showStatus('Помилка завантаження малюнка', true);
+        }
+    }
+</script>
+{% endblock %}

@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Реєстрація - DrawingSocial</title>
+    <link rel="stylesheet" href="/static/styles.css">
+</head>
+<body>
+    <div class="auth-container">
+        <div class="auth-card" id="register-form">
+            <h1>🎨 Реєстрація</h1>
+            <p style="color: var(--text-muted); margin-bottom: 25px;">Приєднуйтесь до нашої творчої спільноти!</p>
+            <div class="form-group">
+                <input type="email" id="reg-email" placeholder="Електронна пошта">
+            </div>
+            <div class="form-group">
+                <input type="text" id="reg-nickname" placeholder="Нікнейм">
+            </div>
+            <div class="form-group">
+                <input type="password" id="reg-password" placeholder="Пароль">
+            </div>
+            <button onclick="register()" style="width: 100%; margin-top: 10px;">Створити акаунт</button>
+            <p>Вже є акаунт? <a href="/login">Увійти</a></p>
+        </div>
+    </div>
+    <script src="/static/js/app.js"></script>
+</body>
+</html>

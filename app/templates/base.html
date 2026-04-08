@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>{% block title %}DrawingSocial{% endblock %}</title>
+  <link rel="stylesheet" href="/static/styles.css">
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;500;700&family=Inter:wght@300;500;700&display=swap" rel="stylesheet">
+</head>
+
+<body>
+<div id="status-msg" class="hidden"></div>
+<header id="nav-bar">
+  <a href="/" class="logo">🎨 DrawingSocial</a>
+  <form class="search-container" id="search-form">
+    <input type="text" id="search-input" placeholder="Пошук...">
+    <button type="submit">🔍</button>
+  </form>
+  <div id="nav-links">
+    <a href="/" id="nav-feed">Стрічка</a>
+    <a href="/drawing/new" id="nav-create">Створити</a>
+    <a href="/profile" id="nav-profile">Профіль</a>
+    <a href="#" id="nav-logout" onclick="logout(); return false;" style="display: none;">Вихід</a>
+  </div>
+</header>
+
+<main class="container">
+  {% block content %}{% endblock %}
+</main>
+
+<script src="/static/js/app.js"></script>
+{% block extra_js %}{% endblock %}
+</body>
+</html>

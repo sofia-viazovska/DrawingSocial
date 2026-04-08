@@ -1,0 +1,300 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="profile-section">
+    <div style="text-align: center; margin-bottom: 30px;">
+        <div style="font-size: 4rem; margin-bottom: 10px;">👤</div>
+        <h2 id="profile-nickname" class="user-nickname"></h2>
+        <p id="profile-email" style="color: var(--text-muted);"></p>
+        <div id="follow-container" style="margin-top: 15px;"></div>
+    </div>
+
+    <div class="profile-stats">
+        <div class="stat-card">
+            <h3 id="my-drawings-count">0</h3>
+            <p>Малюнків</p>
+        </div>
+        <div class="stat-card clickable" onclick="openFollowersModal()">
+            <h3 id="followers-count">0</h3>
+            <p>Підписників</p>
+        </div>
+        <div class="stat-card">
+            <h3 id="total-likes-received">0</h3>
+            <p>Отримано лайків</p>
+        </div>
+    </div>
+
+    <!-- Followers Modal -->
+    <div id="followers-modal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Підписники</h3>
+                <span class="close-modal" onclick="closeFollowersModal()">&times;</span>
+            </div>
+            <div id="followers-list" class="users-grid">
+                <!-- Followers will be loaded here -->
+            </div>
+        </div>
+    </div>
+
+    <h3 style="margin-bottom: 20px;">🎨 Мої шедеври</h3>
+    <div id="my-drawings-list">
+        <div class="empty-state">У вас ще немає малюнків. <a href="/drawing/new">Створіть свій перший шедевр!</a></div>
+    </div>
+
+    <h3 style="margin-bottom: 20px; margin-top: 40px;">🤝 Мої внески</h3>
+    <div id="contributed-drawings-list">
+        <div class="empty-state">Ви ще не долучались до чужих малюнків.</div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    const targetUserId = "{{ target_user_id if target_user_id else '' }}";
+
+    document.addEventListener('DOMContentLoaded', () => {
+        if (!targetUserId) {
+            document.getElementById('nav-profile').classList.add('active');
+            loadProfile(null);
+        } else {
+            loadProfile(targetUserId);
+        }
+    });
+
+    async function loadProfile(userId) {
+        try {
+            if (!userId) {
+                // Fetch own profile info
+                const meRes = await fetch('/auth/me', {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                if (!meRes.ok) throw new Error('Не вдалося отримати дані користувача');
+                const me = await meRes.json();
+                userId = me.id;
+                document.getElementById('profile-nickname').innerText = me.nickname;
+                document.getElementById('profile-email').innerText = me.email;
+            } else {
+                const userRes = await fetch(`/auth/users/${userId}`, {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                if (!userRes.ok) throw new Error('Користувача не знайдено');
+                const user = await userRes.json();
+                document.getElementById('profile-nickname').innerText = user.nickname;
+                document.getElementById('profile-email').innerText = user.email;
+                
+                // Update headers if viewing someone else's profile
+                document.querySelector('h3:nth-of-type(1)').innerText = `🎨 Шедеври ${user.nickname}`;
+                document.querySelector('h3:nth-of-type(2)').innerText = `🤝 Внески ${user.nickname}`;
+            }
+
+            // Load Owned Drawings
+            const ownedRes = await fetch(`/drawings/users/${userId}/drawings`, {
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+            const ownedDrawings = await ownedRes.json();
+            renderDrawings(ownedDrawings, 'my-drawings-list', 'owned');
+
+            // Load Contributed Drawings
+            const contributedRes = await fetch(`/drawings/users/${userId}/contributed`, {
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+            const contributedDrawings = await contributedRes.json();
+            renderDrawings(contributedDrawings, 'contributed-drawings-list', 'contributed');
+
+            // Update stats
+            document.getElementById('my-drawings-count').innerText = ownedDrawings.length;
+            const totalLikes = ownedDrawings.reduce((sum, d) => sum + d.likes_count, 0);
+            document.getElementById('total-likes-received').innerText = totalLikes;
+
+            // Load followers count
+            const followersRes = await fetch(`/drawings/users/${userId}/followers`, {
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+            const followers = await followersRes.json();
+            document.getElementById('followers-count').innerText = followers.length;
+
+            // Load follow status
+            if (userId && userId != (await getMyId())) {
+                const followRes = await fetch(`/drawings/users/${userId}/is_following`, {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                const { is_following } = await followRes.json();
+                renderFollowButton(userId, is_following);
+            }
+
+        } catch (e) {
+            console.error(e);
+            showStatus(e.message, true);
+        }
+    }
+
+    async function getMyId() {
+        const meRes = await fetch('/auth/me', {
+            headers: { 'Authorization': `Bearer ${token}` }
+        });
+        const me = await meRes.json();
+        return me.id;
+    }
+
+    function renderFollowButton(userId, isFollowing) {
+        const container = document.getElementById('follow-container');
+        if (!container) return;
+        
+        const btn = document.createElement('button');
+        btn.innerText = isFollowing ? 'Відписатися' : 'Підписатися';
+        btn.className = isFollowing ? 'secondary' : '';
+        btn.onclick = () => toggleFollow(userId, isFollowing);
+        
+        container.innerHTML = '';
+        container.appendChild(btn);
+    }
+
+    async function toggleFollow(userId, isFollowing) {
+        const method = isFollowing ? 'DELETE' : 'POST';
+        const action = isFollowing ? 'unfollow' : 'follow';
+        
+        try {
+            const res = await fetch(`/drawings/users/${userId}/${action}`, {
+                method: method,
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+            if (res.ok) {
+                showStatus(isFollowing ? 'Ви відписалися' : 'Ви підписалися');
+                renderFollowButton(userId, !isFollowing);
+                // Refresh profile to update followers count
+                loadProfile(userId);
+            } else {
+                const data = await res.json();
+                showStatus(data.detail || 'Помилка', true);
+            }
+        } catch (e) {
+            showStatus('Помилка з\'єднання', true);
+        }
+    }
+
+    async function openFollowersModal() {
+        const modal = document.getElementById('followers-modal');
+        const list = document.getElementById('followers-list');
+        list.innerHTML = '<div style="text-align: center; padding: 20px;">Завантаження...</div>';
+        modal.style.display = 'flex';
+
+        const userId = targetUserId || (await getMyId());
+        
+        try {
+            const res = await fetch(`/drawings/users/${userId}/followers`, {
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+            const followers = await res.json();
+            
+            list.innerHTML = '';
+            if (followers.length === 0) {
+                list.innerHTML = '<div class="empty-state">У цього користувача ще немає підписників.</div>';
+            } else {
+                followers.forEach(user => {
+                    const card = document.createElement('div');
+                    card.className = 'user-search-card';
+                    card.style.cursor = 'pointer';
+                    card.onclick = () => {
+                        window.location.href = `/profile/${user.id}`;
+                    };
+                    card.innerHTML = `
+                        <div class="user-info">
+                            <div class="user-avatar">${user.nickname[0].toUpperCase()}</div>
+                            <div>
+                                <div class="user-nickname">${user.nickname}</div>
+                                <div class="user-email muted">${user.email}</div>
+                            </div>
+                        </div>
+                    `;
+                    list.appendChild(card);
+                });
+            }
+        } catch (e) {
+            list.innerHTML = '<div class="empty-state">Помилка завантаження.</div>';
+        }
+    }
+
+    function closeFollowersModal() {
+        document.getElementById('followers-modal').style.display = 'none';
+    }
+
+    // Close modal on click outside
+    window.onclick = function(event) {
+        const modal = document.getElementById('followers-modal');
+        if (event.target == modal) {
+            modal.style.display = "none";
+        }
+    }
+
+    async function renderDrawings(drawings, containerId, type) {
+        const list = document.getElementById(containerId);
+        list.innerHTML = '';
+        
+        if (drawings.length === 0) {
+            const msg = type === 'owned' 
+                ? 'Користувач ще не створив жодного малюнка.' 
+                : 'Користувач ще не долучався до інших малюнків.';
+            list.innerHTML = `<div class="empty-state">${msg}</div>`;
+            return;
+        }
+
+        for (let details of drawings) {
+            const card = document.createElement('div');
+            card.className = 'drawing-card';
+
+            // Identify collaborators (unique authors of layers other than the owner)
+            const collaborators = [];
+            const seenIds = new Set([details.owner_id]);
+            
+            details.layers.forEach(layer => {
+                if (!seenIds.has(layer.author_id)) {
+                    collaborators.push({
+                        id: layer.author_id,
+                        nickname: layer.author_nickname || 'Анонім'
+                    });
+                    seenIds.add(layer.author_id);
+                }
+            });
+
+            const collaboratorsHtml = collaborators.length > 0 
+                ? ` • Співавтори: ${collaborators.map(c => `<a href="/profile/${c.id}" style="color: var(--primary); text-decoration: none; font-weight: bold;">${c.nickname}</a>`).join(', ')}`
+                : '';
+
+            card.innerHTML = `
+                <div class="flex justify-between items-center">
+                    <h3>${details.title}</h3>
+                    <span style="background: var(--primary); padding: 5px 15px; border-radius: 20px; color: white; font-weight: bold;">❤️ ${details.likes_count}</span>
+                </div>
+                <div class="muted" style="margin-bottom: 10px;">Автор: <a href="/profile/${details.owner_id}" style="color: var(--primary); text-decoration: none; font-weight: bold;">${details.owner_nickname || details.owner_email || 'Анонім'}</a>${collaboratorsHtml}</div>
+                <div class="drawing-canvas-container" id="${type}-display-${details.id}"></div>
+                <div style="margin-top: 20px;">
+                    <button onclick="openEdit(${details.id}, '${details.title}')" style="width: 100%;">🎨 Додати шар</button>
+                </div>
+            `;
+            list.appendChild(card);
+
+            const display = document.getElementById(`${type}-display-${details.id}`);
+            const mainCanvas = document.createElement('canvas');
+            mainCanvas.width = 500;
+            mainCanvas.height = 500;
+            mainCanvas.style.width = '100%';
+            mainCanvas.style.height = 'auto';
+            display.appendChild(mainCanvas);
+            const ctx = mainCanvas.getContext('2d');
+
+            for (let layer of details.layers) {
+                await new Promise((resolve) => {
+                    const img = new Image();
+                    img.crossOrigin = "anonymous";
+                    img.onload = () => {
+                        ctx.drawImage(img, 0, 0, 500, 500);
+                        resolve();
+                    };
+                    img.src = layer.image_data;
+                });
+            }
+        }
+    }
+</script>
+{% endblock %}

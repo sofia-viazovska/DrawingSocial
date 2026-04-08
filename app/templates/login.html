@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Вхід - DrawingSocial</title>
+    <link rel="stylesheet" href="/static/styles.css">
+</head>
+<body>
+    <div class="auth-container">
+        <div class="auth-card" id="login-form">
+            <h1>🎨 Вхід</h1>
+            <p style="color: var(--text-muted); margin-bottom: 25px;">Ласкаво просимо до DrawingSocial!</p>
+            <div class="form-group">
+                <input type="text" id="login-email" placeholder="Email або Нікнейм">
+            </div>
+            <div class="form-group">
+                <input type="password" id="login-password" placeholder="Пароль">
+            </div>
+            <button onclick="login()" style="width: 100%; margin-top: 10px;">Увійти</button>
+            <p>Немає акаунту? <a href="/register">Зареєструватися</a></p>
+        </div>
+    </div>
+    <script src="/static/js/app.js"></script>
+</body>
+</html>
