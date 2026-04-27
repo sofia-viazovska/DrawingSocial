@@ -24,12 +24,11 @@ from app.application.queries.handlers import (
 )
 from app.presentation.schemas.schemas import DrawingCreate, DrawingResponse, LayerCreate, LayerResponse, UserResponse
 from app.core.security import get_current_user
-from app.domain.exceptions.exceptions import DomainException, EntityNotFoundError, EmailAlreadyExistsError
 from app.infrastructure.db.models.models import User as DBUser
 
 router = APIRouter(prefix="/drawings", tags=["drawings"])
 
-# Dependency injectors
+# --- Dependency injectors --- (залишаємо без змін)
 def get_create_drawing_handler(db: Session = Depends(get_db)) -> CreateDrawingHandler:
     user_repo = SQLAlchemyUserRepository(db)
     drawing_repo = SQLAlchemyDrawingRepository(db)
@@ -83,6 +82,7 @@ def get_follow_user_handler(db: Session = Depends(get_db)) -> FollowUserHandler:
 def get_unfollow_user_handler(db: Session = Depends(get_db)) -> UnfollowUserHandler:
     user_repo = SQLAlchemyUserRepository(db)
     return UnfollowUserHandler(user_repo)
+# ----------------------------
 
 @router.post("/", response_model=DrawingResponse, status_code=status.HTTP_201_CREATED)
 def create_drawing(
@@ -91,15 +91,12 @@ def create_drawing(
     query_handler: GetDrawingHandler = Depends(get_drawing_query_handler),
     current_user: DBUser = Depends(get_current_user)
 ):
-    try:
-        drawing_id = handler.handle(CreateDrawingCommand(
-            owner_id=current_user.id,
-            title=drawing_in.title,
-            first_layer_data=drawing_in.first_layer_data
-        ))
-        return query_handler.handle(GetDrawingQuery(drawing_id))
-    except DomainException as e:
-        raise HTTPException(status_code=400, detail=str(e))
+    drawing_id = handler.handle(CreateDrawingCommand(
+        owner_id=current_user.id,
+        title=drawing_in.title,
+        first_layer_data=drawing_in.first_layer_data
+    ))
+    return query_handler.handle(GetDrawingQuery(drawing_id))
 
 @router.get("/feed", response_model=List[DrawingResponse])
 def get_feed(
@@ -155,10 +152,7 @@ def get_drawing(
     drawing_id: int,
     handler: GetDrawingHandler = Depends(get_drawing_query_handler)
 ):
-    try:
-        return handler.handle(GetDrawingQuery(drawing_id))
-    except EntityNotFoundError as e:
-        raise HTTPException(status_code=404, detail=str(e))
+    return handler.handle(GetDrawingQuery(drawing_id))
 
 @router.delete("/{drawing_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_drawing(
@@ -166,12 +160,7 @@ def delete_drawing(
     handler: DeleteDrawingHandler = Depends(get_delete_drawing_handler),
     current_user: DBUser = Depends(get_current_user)
 ):
-    try:
-        handler.handle(DeleteDrawingCommand(drawing_id, current_user.id))
-    except EntityNotFoundError as e:
-        raise HTTPException(status_code=404, detail=str(e))
-    except DomainException as e:
-        raise HTTPException(status_code=403, detail=str(e))
+    handler.handle(DeleteDrawingCommand(drawing_id, current_user.id))
 
 @router.post("/{drawing_id}/layers", response_model=LayerResponse, status_code=status.HTTP_201_CREATED)
 def add_layer(
@@ -181,20 +170,12 @@ def add_layer(
     query_handler: GetDrawingHandler = Depends(get_drawing_query_handler),
     current_user: DBUser = Depends(get_current_user)
 ):
-    try:
-        layer_id = handler.handle(AddLayerCommand(drawing_id, current_user.id, layer_in.image_data))
-        # Re-fetch drawing to get the layer details properly formatted if needed, 
-        # but here we can just return the layer if our repo returns a domain Layer that maps to LayerResponse.
-        # However, for simplicity and ensuring full data:
-        drawing = query_handler.handle(GetDrawingQuery(drawing_id))
-        for layer in drawing.layers:
-            if layer.id == layer_id:
-                return layer
-        return None # Should not happen
-    except EntityNotFoundError as e:
-        raise HTTPException(status_code=404, detail=str(e))
-    except DomainException as e:
-        raise HTTPException(status_code=400, detail=str(e))
+    layer_id = handler.handle(AddLayerCommand(drawing_id, current_user.id, layer_in.image_data))
+    drawing = query_handler.handle(GetDrawingQuery(drawing_id))
+    for layer in drawing.layers:
+        if layer.id == layer_id:
+            return layer
+    return None
 
 @router.post("/{drawing_id}/like")
 def like_drawing(
@@ -202,11 +183,8 @@ def like_drawing(
     handler: ToggleLikeHandler = Depends(get_toggle_like_handler),
     current_user: DBUser = Depends(get_current_user)
 ):
-    try:
-        handler.handle(ToggleLikeCommand(drawing_id, current_user.id))
-        return {"message": "Toggled like"}
-    except EntityNotFoundError as e:
-        raise HTTPException(status_code=404, detail=str(e))
+    handler.handle(ToggleLikeCommand(drawing_id, current_user.id))
+    return {"message": "Toggled like"}
 
 @router.post("/users/{user_id}/follow")
 def follow_user(
@@ -214,13 +192,8 @@ def follow_user(
     handler: FollowUserHandler = Depends(get_follow_user_handler),
     current_user: DBUser = Depends(get_current_user)
 ):
-    try:
-        handler.handle(FollowUserCommand(current_user.id, user_id))
-        return {"message": "Followed"}
-    except EntityNotFoundError as e:
-        raise HTTPException(status_code=404, detail=str(e))
-    except DomainException as e:
-        raise HTTPException(status_code=400, detail=str(e))
+    handler.handle(FollowUserCommand(current_user.id, user_id))
+    return {"message": "Followed"}
 
 @router.delete("/users/{user_id}/unfollow")
 def unfollow_user(
@@ -228,13 +201,8 @@ def unfollow_user(
     handler: UnfollowUserHandler = Depends(get_unfollow_user_handler),
     current_user: DBUser = Depends(get_current_user)
 ):
-    try:
-        handler.handle(UnfollowUserCommand(current_user.id, user_id))
-        return {"message": "Unfollowed"}
-    except EntityNotFoundError as e:
-        raise HTTPException(status_code=404, detail=str(e))
-    except DomainException as e:
-        raise HTTPException(status_code=400, detail=str(e))
+    handler.handle(UnfollowUserCommand(current_user.id, user_id))
+    return {"message": "Unfollowed"}
 
 @router.get("/", response_model=List[DrawingResponse])
 def get_all(

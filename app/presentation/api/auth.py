@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+kkfrom fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
 from datetime import timedelta
@@ -10,7 +10,6 @@ from app.application.commands.handlers import RegisterUserCommand, RegisterUserH
 from app.application.queries.handlers import GetUserQuery, GetUserHandler
 from app.presentation.schemas.schemas import UserCreate, UserResponse, Token
 from app.core.security import get_password_hash, verify_password, create_access_token, ACCESS_TOKEN_EXPIRE_MINUTES, get_current_user
-from app.domain.exceptions.exceptions import DomainException, EmailAlreadyExistsError, NicknameAlreadyExistsError, EntityNotFoundError
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -29,27 +28,25 @@ def register(
     handler: RegisterUserHandler = Depends(get_register_handler),
     query_handler: GetUserHandler = Depends(get_user_query_handler)
 ):
-    try:
-        user_id = handler.handle(RegisterUserCommand(
-            email=user_in.email,
-            nickname=user_in.nickname,
-            hashed_password=get_password_hash(user_in.password)
-        ))
-        return query_handler.handle(GetUserQuery(user_id))
-    except (EmailAlreadyExistsError, NicknameAlreadyExistsError) as e:
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(e))
-    except DomainException as e:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+    # Більше ніяких try/except! Якщо імейл існує, хендлер кине InvariantViolationError,
+    # а main.py автоматично перетворить це на 400 Bad Request.
+    user_id = handler.handle(RegisterUserCommand(
+        email=user_in.email,
+        nickname=user_in.nickname,
+        hashed_password=get_password_hash(user_in.password)
+    ))
+    return query_handler.handle(GetUserQuery(user_id))
 
 @router.post("/login", response_model=Token)
 def login(db: Session = Depends(get_db), form_data: OAuth2PasswordRequestForm = Depends()):
     user_repo = SQLAlchemyUserRepository(db)
-    # Finding user for login - we can keep it here or move to a separate use case
     from app.infrastructure.db.models.models import User as DBUser
     db_user = db.query(DBUser).filter(
         (DBUser.email == form_data.username) | (DBUser.nickname == form_data.username)
     ).first()
     
+    # Залишаємо HTTPException тут, бо це специфічна логіка авторизації (401), 
+    # яка стосується саме інфраструктури/безпеки, а не бізнес-правил.
     if not db_user or not verify_password(form_data.password, db_user.hashed_password):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -68,13 +65,10 @@ def get_user(
     user_id: int, 
     handler: GetUserHandler = Depends(get_user_query_handler)
 ):
-    try:
-        return handler.handle(GetUserQuery(user_id))
-    except EntityNotFoundError as e:
-        raise HTTPException(status_code=404, detail=str(e))
+    # Якщо юзера немає, вилетить EntityNotFoundError і main.py дасть 404
+    return handler.handle(GetUserQuery(user_id))
 
 @router.get("/me", response_model=UserResponse)
 def get_me(db: Session = Depends(get_db), current_user_db = Depends(get_current_user)):
-    # current_user from security usually returns DB model, we might need to map it
     from app.infrastructure.mappers.mappers import UserMapper
     return UserMapper.to_domain(current_user_db)
