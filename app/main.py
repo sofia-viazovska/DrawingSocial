@@ -3,7 +3,7 @@ from fastapi import FastAPI, Request
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from fastapi.responses import HTMLResponse
-from app.api import auth, drawings
+from app.presentation.api import auth, drawings
 from app.db.database import init_db
 
 # Get the base directory for paths

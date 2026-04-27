@@ -258,8 +258,12 @@ async function likeDrawing(drawingId, btn) {
         });
         if (res.ok) {
             showStatus('Лайк поставлено!');
-            const q = document.getElementById('search-input')?.value;
-            loadFeed(q);
+            if (typeof loadFeed === 'function' && document.getElementById('drawings-list')) {
+                const q = document.getElementById('search-input')?.value;
+                loadFeed(q);
+            } else if (typeof loadProfile === 'function') {
+                loadProfile();
+            }
         } else {
             const data = await res.json();
             showStatus(data.detail || 'Помилка', true);

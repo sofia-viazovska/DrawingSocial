@@ -86,8 +86,12 @@ def test_create_drawing(client):
         headers=headers
     )
     assert response.status_code == 201
-    assert response.json()["title"] == "My Drawing"
-    assert len(response.json()["layers"]) == 1
+    data = response.json()
+    assert data["title"] == "My Drawing"
+    assert data["owner_nickname"] == "tester"
+    assert data["owner_email"] == "test@example.com"
+    assert len(data["layers"]) == 1
+    assert data["layers"][0]["author_nickname"] == "tester"
 
 def test_add_layer(client):
     # Setup: User 1 creates drawing, User 2 adds layer
@@ -123,13 +127,17 @@ def test_like_drawing(client):
     res = client.post(f"/drawings/{d_id}/like", headers=headers)
     assert res.status_code == 200
     
-    # Double like should fail
-    res = client.post(f"/drawings/{d_id}/like", headers=headers)
-    assert res.status_code == 409
-    
     # Check count
     res = client.get(f"/drawings/{d_id}")
     assert res.json()["likes_count"] == 1
+
+    # Double like should toggle (unlike)
+    res = client.post(f"/drawings/{d_id}/like", headers=headers)
+    assert res.status_code == 200
+    
+    # Check count
+    res = client.get(f"/drawings/{d_id}")
+    assert res.json()["likes_count"] == 0
 
 def test_follow_and_feed(client):
     client.post("/auth/register", json={"email": "u1@ex.com", "nickname": "u1", "password": "p"})

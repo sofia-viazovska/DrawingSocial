@@ -268,8 +268,9 @@
                 </div>
                 <div class="muted" style="margin-bottom: 10px;">Автор: <a href="/profile/${details.owner_id}" style="color: var(--primary); text-decoration: none; font-weight: bold;">${details.owner_nickname || details.owner_email || 'Анонім'}</a>${collaboratorsHtml}</div>
                 <div class="drawing-canvas-container" id="${type}-display-${details.id}"></div>
-                <div style="margin-top: 20px;">
-                    <button onclick="openEdit(${details.id}, '${details.title}')" style="width: 100%;">🎨 Додати шар</button>
+                <div style="margin-top: 20px; display: flex; gap: 10px;">
+                    <button onclick="likeDrawing(${details.id}, this)" class="secondary" style="flex: 1;">👍 Лайк</button>
+                    <button onclick="openEdit(${details.id}, '${details.title}')" style="flex: 2;">🎨 Додати шар</button>
                 </div>
             `;
             list.appendChild(card);
