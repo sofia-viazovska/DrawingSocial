@@ -2,14 +2,52 @@ import os
 from fastapi import FastAPI, Request
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, JSONResponse
 from app.presentation.api import auth, drawings
 from app.db.database import init_db
+
+# === ІМПОРТУЄМО НАШІ ДОМЕННІ ПОМИЛКИ ===
+from app.domain.exceptions.exceptions import (
+    DomainException,
+    EntityNotFoundError,
+    InvariantViolationError
+)
 
 # Get the base directory for paths
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
 app = FastAPI(title="Social Drawing Platform")
+
+# === ДОДАЄМО ГЛОБАЛЬНІ ОБРОБНИКИ ПОМИЛОК ===
+
+@app.exception_handler(EntityNotFoundError)
+async def entity_not_found_handler(request: Request, exc: EntityNotFoundError):
+    """Перехоплює помилки 'не знайдено' і повертає 404"""
+    return JSONResponse(
+        status_code=404,
+        content={"message": str(exc), "error_type": "Not Found"}
+    )
+
+@app.exception_handler(InvariantViolationError)
+async def invariant_violation_handler(request: Request, exc: InvariantViolationError):
+    """
+    Перехоплює всі бізнес-помилки (валідація, дублікати email/nickname) 
+    і автоматично повертає 400 Bad Request
+    """
+    return JSONResponse(
+        status_code=400,
+        content={"message": str(exc), "error_type": "Business Rule Violation"}
+    )
+
+@app.exception_handler(DomainException)
+async def fallback_domain_handler(request: Request, exc: DomainException):
+    """Фолбек для будь-яких інших доменних помилок, які ми могли пропустити"""
+    return JSONResponse(
+        status_code=400,
+        content={"message": str(exc), "error_type": "Domain Error"}
+    )
+
+# ==========================================
 
 # Templates with absolute path
 templates = Jinja2Templates(directory=os.path.join(BASE_DIR, "templates"))
