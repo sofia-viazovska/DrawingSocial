@@ -19,8 +19,7 @@ def get_register_handler(db: Session = Depends(get_db)) -> RegisterUserHandler:
     return RegisterUserHandler(user_repo, factory)
 
 def get_user_query_handler(db: Session = Depends(get_db)) -> GetUserHandler:
-    user_repo = SQLAlchemyUserRepository(db)
-    return GetUserHandler(user_repo)
+    return GetUserHandler(db)
 
 @router.post("/register", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
 def register(

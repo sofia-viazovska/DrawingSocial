@@ -45,18 +45,22 @@ def test_follow_user_command():
 def test_create_drawing_command():
     drawing_repo = MagicMock()
     factory = MagicMock()
-    
+
     drawing_to_save = Drawing(None, 1, "Title")
     saved_drawing = Drawing(10, 1, "Title")
-    
+
     factory.create_drawing.return_value = drawing_to_save
     drawing_repo.save.return_value = saved_drawing
-    
+
     handler = CreateDrawingHandler(drawing_repo, factory)
     command = CreateDrawingCommand(1, "Title", "first_layer")
-    
+
     drawing_id = handler.handle(command)
-    
+
+    # Хендлер: factory -> save (отримуємо ID) -> add_layer (домен) -> save (із шаром)
     assert drawing_id == 10
-    drawing_repo.save.assert_called_once_with(drawing_to_save)
-    drawing_repo.add_layer.assert_called_once()
+    factory.create_drawing.assert_called_once_with(1, "Title")
+    assert drawing_repo.save.call_count == 2
+    # Після другого save домен-об'єкт повинен містити перший шар
+    assert len(saved_drawing.layers) == 1
+    assert saved_drawing.layers[0].image_data == "first_layer"

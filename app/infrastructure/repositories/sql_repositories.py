@@ -31,12 +31,12 @@ class SQLAlchemyUserRepository(UserRepository):
         return UserMapper.to_domain(db_user)
 
     def add_follow(self, follower_id: int, followed_id: int) -> None:
-        follow = DBFollow(follower_id=follower_id, followed_id=followed_id)
+        follow = DBFollow(follower_id=follower_id, following_id=followed_id)
         self.session.add(follow)
         self.session.commit()
 
     def remove_follow(self, follower_id: int, followed_id: int) -> None:
-        self.session.query(DBFollow).filter_by(follower_id=follower_id, followed_id=followed_id).delete()
+        self.session.query(DBFollow).filter_by(follower_id=follower_id, following_id=followed_id).delete()
         self.session.commit()
 
 class SQLAlchemyDrawingRepository(DrawingRepository):
@@ -48,18 +48,54 @@ class SQLAlchemyDrawingRepository(DrawingRepository):
         return DrawingMapper.to_domain(db_drawing) if db_drawing else None
 
     def save(self, drawing: Drawing) -> Drawing:
-        db_drawing = DrawingMapper.to_db(drawing)
-        if db_drawing.id:
-            self.session.merge(db_drawing)
+        # 1. Drawing itself
+        if drawing.id:
+            db_drawing = self.session.query(DBDrawing).filter(DBDrawing.id == drawing.id).first()
+            if db_drawing is None:
+                # New drawing with explicit ID — fall back to add
+                db_drawing = DBDrawing(
+                    id=drawing.id,
+                    owner_id=drawing.owner_id,
+                    title=drawing.title,
+                )
+                self.session.add(db_drawing)
+            else:
+                db_drawing.title = drawing.title
+                db_drawing.owner_id = drawing.owner_id
         else:
+            db_drawing = DBDrawing(
+                owner_id=drawing.owner_id,
+                title=drawing.title,
+            )
             self.session.add(db_drawing)
-        
-        # Save layers separately if they are new
+
+        self.session.flush()  # ensure db_drawing.id is populated
+
+        # 2. Layers — додати тільки нові (без id), і записати їхні згенеровані ID назад у domain-об'єкт
         for layer in drawing.layers:
-            db_layer = DBLayer(id=layer.id, drawing_id=db_drawing.id, creator_id=layer.creator_id, image_data=layer.image_data)
-            self.session.merge(db_layer)
-            
+            if layer.id is None:
+                db_layer = DBLayer(
+                    drawing_id=db_drawing.id,
+                    author_id=layer.author_id,
+                    image_data=layer.image_data,
+                )
+                self.session.add(db_layer)
+                self.session.flush()
+                layer.id = db_layer.id
+                layer.drawing_id = db_drawing.id
+
+        # 3. Likes — синхронізуємо: додаємо нові, видаляємо зняті
+        existing_like_user_ids = {l.user_id for l in db_drawing.likes}
+        desired_like_user_ids = set(drawing.likes)
+
+        for user_id in desired_like_user_ids - existing_like_user_ids:
+            self.session.add(DBLike(user_id=user_id, drawing_id=db_drawing.id))
+
+        for user_id in existing_like_user_ids - desired_like_user_ids:
+            self.session.query(DBLike).filter_by(user_id=user_id, drawing_id=db_drawing.id).delete()
+
         self.session.commit()
+        self.session.refresh(db_drawing)
         return DrawingMapper.to_domain(db_drawing)
 
     def delete(self, drawing_id: int) -> None:

@@ -21,11 +21,7 @@ class RegisterUserHandler:
         self.factory = factory
 
     def handle(self, command: RegisterUserCommand) -> int:
-        if self.user_repo.get_by_email(command.email):
-            raise InvariantViolationError(f"Email {command.email} is already registered")
-        if self.user_repo.get_by_nickname(command.nickname):
-            raise InvariantViolationError(f"Nickname {command.nickname} is already taken")
-        
+        # Унікальність email/nickname перевіряється у фабриці через UserRepository (DIP).
         user = self.factory.create_user(command.email, command.nickname, command.hashed_password)
         saved_user = self.user_repo.save(user)
         return saved_user.id
@@ -124,8 +120,11 @@ class FollowUserHandler:
         self.user_repo = user_repo
 
     def handle(self, command: FollowUserCommand) -> None:
-        if command.follower_id == command.followed_id:
-            raise InvariantViolationError("You cannot follow yourself")
+        follower = self.user_repo.get_by_id(command.follower_id)
+        if not follower:
+            raise EntityNotFoundError("Follower not found")
+        # Доменний метод: інваріант "не можна підписатись на себе" живе в моделі User.
+        follower.follow(command.followed_id)
         self.user_repo.add_follow(command.follower_id, command.followed_id)
 
 @dataclass(frozen=True)

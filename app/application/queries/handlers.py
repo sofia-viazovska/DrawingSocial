@@ -32,15 +32,16 @@ class GetDrawingHandler:
         d = self.session.query(DBDrawing).filter(DBDrawing.id == query.drawing_id).first()
         if not d:
             raise EntityNotFoundError(f"Drawing with id {query.drawing_id} not found")
-        
+
         return DrawingReadModel(
             id=d.id,
             title=d.title,
             owner_id=d.owner_id,
             owner_email=d.owner.email,
+            owner_nickname=d.owner.nickname,
             created_at=d.created_at,
             likes_count=len(d.likes),
-            layers=[LayerReadModel(id=l.id, creator_id=l.creator_id, creator_nickname=l.creator.nickname, image_data=l.image_data, created_at=l.created_at) for l in d.layers]
+            layers=[LayerReadModel(id=l.id, drawing_id=l.drawing_id, author_id=l.author_id, author_nickname=l.author.nickname, image_data=l.image_data, created_at=l.created_at) for l in d.layers]
         )
 
 @dataclass(frozen=True)
@@ -52,13 +53,13 @@ class GetFeedHandler:
         self.session = session
 
     def handle(self, query: GetFeedQuery) -> List[DrawingReadModel]:
-        followed_ids = self.session.query(DBFollow.followed_id).filter(DBFollow.follower_id == query.user_id).all()
+        followed_ids = self.session.query(DBFollow.following_id).filter(DBFollow.follower_id == query.user_id).all()
         ids = [i[0] for i in followed_ids]
-        
+
         results = self.session.query(DBDrawing).filter(DBDrawing.owner_id.in_(ids)).order_by(DBDrawing.created_at.desc()).all()
-        
+
         return [DrawingReadModel(
-            id=d.id, title=d.title, owner_id=d.owner_id, owner_email=d.owner.email,
+            id=d.id, title=d.title, owner_id=d.owner_id, owner_email=d.owner.email, owner_nickname=d.owner.nickname,
             created_at=d.created_at, likes_count=len(d.likes), layers=[]
         ) for d in results]
 
@@ -71,11 +72,26 @@ class SearchHandler:
         self.session = session
 
     def handle(self, query: SearchQuery) -> dict:
-        drawings = self.session.query(DBDrawing).filter(DBDrawing.title.contains(query.query)).all()
-        users = self.session.query(DBUser).filter(or_(DBUser.nickname.contains(query.query), DBUser.email.contains(query.query))).all()
-        
+        pattern = f"%{query.query}%"
+        # Малюнки: за назвою АБО за нікнеймом/імейлом автора (case-insensitive)
+        drawings = (
+            self.session.query(DBDrawing)
+            .join(DBDrawing.owner)
+            .filter(or_(
+                DBDrawing.title.ilike(pattern),
+                DBUser.nickname.ilike(pattern),
+                DBUser.email.ilike(pattern),
+            ))
+            .distinct()
+            .all()
+        )
+        # Користувачі: за нікнеймом або імейлом
+        users = self.session.query(DBUser).filter(
+            or_(DBUser.nickname.ilike(pattern), DBUser.email.ilike(pattern))
+        ).all()
+
         return {
-            "drawings": [DrawingReadModel(id=d.id, title=d.title, owner_id=d.owner_id, owner_email=d.owner.email, created_at=d.created_at, likes_count=len(d.likes), layers=[]) for d in drawings],
+            "drawings": [DrawingReadModel(id=d.id, title=d.title, owner_id=d.owner_id, owner_email=d.owner.email, owner_nickname=d.owner.nickname, created_at=d.created_at, likes_count=len(d.likes), layers=[]) for d in drawings],
             "users": [UserReadModel(id=u.id, email=u.email, nickname=u.nickname) for u in users]
         }
 
@@ -89,7 +105,7 @@ class GetUserDrawingsHandler:
 
     def handle(self, query: GetUserDrawingsQuery) -> List[DrawingReadModel]:
         drawings = self.session.query(DBDrawing).filter(DBDrawing.owner_id == query.user_id).all()
-        return [DrawingReadModel(id=d.id, title=d.title, owner_id=d.owner_id, owner_email=d.owner.email, created_at=d.created_at, likes_count=len(d.likes), layers=[]) for d in drawings]
+        return [DrawingReadModel(id=d.id, title=d.title, owner_id=d.owner_id, owner_email=d.owner.email, owner_nickname=d.owner.nickname, created_at=d.created_at, likes_count=len(d.likes), layers=[]) for d in drawings]
 
 @dataclass(frozen=True)
 class GetUserContributedDrawingsQuery:
@@ -101,8 +117,9 @@ class GetUserContributedDrawingsHandler:
 
     def handle(self, query: GetUserContributedDrawingsQuery) -> List[DrawingReadModel]:
         # Вибираємо малюнки, де користувач створив хоча б один шар, але не є власником
-        drawings = self.session.query(DBDrawing).join(DBDrawing.layers).filter(DBDrawing.owner_id != query.user_id).filter(DBUser.id == query.user_id).all()
-        return [DrawingReadModel(id=d.id, title=d.title, owner_id=d.owner_id, owner_email=d.owner.email, created_at=d.created_at, likes_count=len(d.likes), layers=[]) for d in drawings]
+        from app.infrastructure.db.models.models import Layer as DBLayer
+        drawings = self.session.query(DBDrawing).join(DBDrawing.layers).filter(DBDrawing.owner_id != query.user_id).filter(DBLayer.author_id == query.user_id).distinct().all()
+        return [DrawingReadModel(id=d.id, title=d.title, owner_id=d.owner_id, owner_email=d.owner.email, owner_nickname=d.owner.nickname, created_at=d.created_at, likes_count=len(d.likes), layers=[]) for d in drawings]
 
 @dataclass(frozen=True)
 class IsFollowingQuery:
@@ -114,7 +131,7 @@ class IsFollowingHandler:
         self.session = session
 
     def handle(self, query: IsFollowingQuery) -> bool:
-        follow = self.session.query(DBFollow).filter_by(follower_id=query.follower_id, followed_id=query.followed_id).first()
+        follow = self.session.query(DBFollow).filter_by(follower_id=query.follower_id, following_id=query.followed_id).first()
         return follow is not None
 
 @dataclass(frozen=True)
@@ -126,5 +143,5 @@ class GetFollowersHandler:
         self.session = session
 
     def handle(self, query: GetFollowersQuery) -> List[UserReadModel]:
-        followers = self.session.query(DBUser).join(DBFollow, DBUser.id == DBFollow.follower_id).filter(DBFollow.followed_id == query.user_id).all()
+        followers = self.session.query(DBUser).join(DBFollow, DBUser.id == DBFollow.follower_id).filter(DBFollow.following_id == query.user_id).all()
         return [UserReadModel(id=u.id, email=u.email, nickname=u.nickname) for u in followers]
