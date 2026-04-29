@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod
 from typing import List, Optional
-from app.domain.models.models import User, Drawing, Layer
+from app.domain.models.models import User, Drawing
 
 class UserRepository(ABC):
     @abstractmethod
@@ -20,15 +20,11 @@ class UserRepository(ABC):
         pass
 
     @abstractmethod
-    def add_follow(self, follower_id: int, following_id: int):
+    def add_follow(self, follower_id: int, followed_id: int) -> None:
         pass
 
     @abstractmethod
-    def remove_follow(self, follower_id: int, following_id: int):
-        pass
-
-    @abstractmethod
-    def get_followers(self, user_id: int) -> List[User]:
+    def remove_follow(self, follower_id: int, followed_id: int) -> None:
         pass
 
 class DrawingRepository(ABC):
@@ -37,37 +33,9 @@ class DrawingRepository(ABC):
         pass
 
     @abstractmethod
-    def list_feed(self, user_id: int) -> List[Drawing]:
-        pass
-
-    @abstractmethod
-    def search(self, q: str) -> dict:
-        pass
-
-    @abstractmethod
-    def get_user_drawings(self, user_id: int) -> List[Drawing]:
-        pass
-
-    @abstractmethod
-    def get_user_contributed_drawings(self, user_id: int) -> List[Drawing]:
-        pass
-
-    @abstractmethod
-    def is_following(self, follower_id: int, following_id: int) -> bool:
-        pass
-
-    @abstractmethod
     def save(self, drawing: Drawing) -> Drawing:
         pass
 
     @abstractmethod
-    def delete(self, drawing_id: int):
-        pass
-
-    @abstractmethod
-    def add_layer(self, layer: Layer) -> Layer:
-        pass
-
-    @abstractmethod
-    def toggle_like(self, drawing_id: int, user_id: int):
+    def delete(self, drawing_id: int) -> None:
         pass

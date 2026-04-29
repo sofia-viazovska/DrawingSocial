@@ -28,40 +28,12 @@ from app.infrastructure.db.models.models import User as DBUser
 
 router = APIRouter(prefix="/drawings", tags=["drawings"])
 
-# --- Dependency injectors --- (залишаємо без змін)
+# --- Commands (Repositories remain here) ---
 def get_create_drawing_handler(db: Session = Depends(get_db)) -> CreateDrawingHandler:
     user_repo = SQLAlchemyUserRepository(db)
     drawing_repo = SQLAlchemyDrawingRepository(db)
     factory = DomainFactory(user_repo)
     return CreateDrawingHandler(drawing_repo, factory)
-
-def get_drawing_query_handler(db: Session = Depends(get_db)) -> GetDrawingHandler:
-    drawing_repo = SQLAlchemyDrawingRepository(db)
-    return GetDrawingHandler(drawing_repo)
-
-def get_feed_query_handler(db: Session = Depends(get_db)) -> GetFeedHandler:
-    drawing_repo = SQLAlchemyDrawingRepository(db)
-    return GetFeedHandler(drawing_repo)
-
-def get_search_query_handler(db: Session = Depends(get_db)) -> SearchHandler:
-    drawing_repo = SQLAlchemyDrawingRepository(db)
-    return SearchHandler(drawing_repo)
-
-def get_user_drawings_query_handler(db: Session = Depends(get_db)) -> GetUserDrawingsHandler:
-    drawing_repo = SQLAlchemyDrawingRepository(db)
-    return GetUserDrawingsHandler(drawing_repo)
-
-def get_user_contributed_drawings_query_handler(db: Session = Depends(get_db)) -> GetUserContributedDrawingsHandler:
-    drawing_repo = SQLAlchemyDrawingRepository(db)
-    return GetUserContributedDrawingsHandler(drawing_repo)
-
-def get_is_following_query_handler(db: Session = Depends(get_db)) -> IsFollowingHandler:
-    drawing_repo = SQLAlchemyDrawingRepository(db)
-    return IsFollowingHandler(drawing_repo)
-
-def get_followers_query_handler(db: Session = Depends(get_db)) -> GetFollowersHandler:
-    user_repo = SQLAlchemyUserRepository(db)
-    return GetFollowersHandler(user_repo)
 
 def get_delete_drawing_handler(db: Session = Depends(get_db)) -> DeleteDrawingHandler:
     drawing_repo = SQLAlchemyDrawingRepository(db)
@@ -82,8 +54,30 @@ def get_follow_user_handler(db: Session = Depends(get_db)) -> FollowUserHandler:
 def get_unfollow_user_handler(db: Session = Depends(get_db)) -> UnfollowUserHandler:
     user_repo = SQLAlchemyUserRepository(db)
     return UnfollowUserHandler(user_repo)
-# ----------------------------
 
+# --- Queries (Session injected directly) ---
+def get_drawing_query_handler(db: Session = Depends(get_db)) -> GetDrawingHandler:
+    return GetDrawingHandler(db)
+
+def get_feed_query_handler(db: Session = Depends(get_db)) -> GetFeedHandler:
+    return GetFeedHandler(db)
+
+def get_search_query_handler(db: Session = Depends(get_db)) -> SearchHandler:
+    return SearchHandler(db)
+
+def get_user_drawings_query_handler(db: Session = Depends(get_db)) -> GetUserDrawingsHandler:
+    return GetUserDrawingsHandler(db)
+
+def get_user_contributed_drawings_query_handler(db: Session = Depends(get_db)) -> GetUserContributedDrawingsHandler:
+    return GetUserContributedDrawingsHandler(db)
+
+def get_is_following_query_handler(db: Session = Depends(get_db)) -> IsFollowingHandler:
+    return IsFollowingHandler(db)
+
+def get_followers_query_handler(db: Session = Depends(get_db)) -> GetFollowersHandler:
+    return GetFollowersHandler(db)
+
+# --- Endpoints ---
 @router.post("/", response_model=DrawingResponse, status_code=status.HTTP_201_CREATED)
 def create_drawing(
     drawing_in: DrawingCreate,
